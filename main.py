@@ -16,9 +16,19 @@ class Card: # define a class for cards
             return self.suit == other[0] and self.rank == other[1]
         return False # if neither, return unequal
     
-    def __repr__(self): # defines the string REPResentation of a card
+    def render(self): # defines the string REPResentation of a card
         rankStr = ranks.get(self.rank, str(self.rank)) # checks to see if rank had letter in ranks, if not pass card number (default)
-        return f"{self.suit}{rankStr}"
+        left = f"{rankStr:<2}"
+        right= f"{rankStr:>2}"
+        return [
+            f"┌─────────┐",
+            f"│{left}       │",
+            f"│         │",
+            f"│    {self.suit}    │",
+            f"│         │",
+            f"│       {right}│",
+            f"└─────────┘"
+        ]
     
     def toDeck(self, deck): # function which when called will add this card (self) to a list called deck
         deck.append(self)
@@ -63,10 +73,23 @@ class Game: # defines a game class
             total -= 10
             aces -= 1
         return total
+    
+    def isBust(self, hand):
+        if self.getTotal(hand) > 21:
+            return True
+        return False
+    
+    def renderHand(self, hand):
+        cardRows = [card.render() for card in hand] # list of lists: each inner list is the ASCII lines of a card
+        lines = [] 
+        for row in zip(*cardRows): # combine the rows of each card from the same line together
+            lines.append(" ".join(row)) # joins the lines from all cards from this row into one string with a space between them
+        return "\n".join(lines) # lines is now a list of strings, each representing one horizontal row of the hand
 
 game = Game()
 #print("Deck Before Dealing: " + str(game.deck))
 game.dealStartingHands()
-print(f"Player Hand: {str(game.pHand)} Total: {game.getTotal(game.pHand)}")
-print(f"Dealer Hand: {str(game.dHand)} Total: {game.getTotal(game.dHand)}")
+print(f"\nPlayer:\n{game.renderHand(game.pHand)}\nTotal: {game.getTotal(game.pHand)}")
+#print(f"\nDealer:\n{game.renderHand(game.dHand)}\nTotal: {game.getTotal(game.dHand)}")
+print("\n")
 #print("Deck After Dealing: " + str(game.deck))
