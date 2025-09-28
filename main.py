@@ -1,10 +1,36 @@
-import random
-
 # REMEMBER: self passes automatically except when you call a method through the class itself and not the instance
 
-# clubs, diamonds, hearts, spades
-suits = ["♣", "♦", "♥", "♠"]
+import random
+
+DNAME = "DEALER"
+playerLimit = 7
+startingMoney = 500
+suits = ["♣", "♦", "♥", "♠"] # clubs, diamonds, hearts, spades
 ranks = {1: "A", 11: "J", 12: "Q", 13: "K"}
+
+class Setup:
+    def __init__(self):
+        self.players = []
+        self.addPlayers()
+        self.game = self.createGame()        
+    
+    def addPlayers(self):
+        print("PLAYER MAXIMUM: 7")
+        playerNames = input("PLEASE INPUT PLAYER NAMES SEPARATED BY SLASHES (/): ").split("/")
+        for name in filter(None, playerNames[:playerLimit]): # ignores empty strings in case of misinput and slice syntax (:) says "take first {playerLimit} from playerNames"
+            self.players.append(Player(name))
+
+    def createGame(self):
+        return Game(self.players)
+
+class Player:
+    def __init__(self, name):
+        self.name = name
+        self.money = startingMoney
+        self.hand = Hand()
+    
+    def getHand(self):
+        return self.hand
 
 class Card: # define a class for cards
     def __init__(self, suit, rank): # the constructor for the card class
@@ -31,14 +57,40 @@ class Card: # define a class for cards
         ]
     
 class Hand:
-    def __init__(self):
+    def __init__(self, isDealer=False):
         self.cards = []
+        self.isDealer = isDealer
     
-    def dealCard(self, card):
+    def renderHand(self, hideHole=False):
+        cardRows = []
+        if self.isDealer == False:
+            cardRows = [card.render() for card in self.cards] # list of lists: each inner list is the ASCII lines of a card
+            lines = [] 
+            for row in zip(*cardRows): # combine the rows of each card from the same line together
+                lines.append(" ".join(row)) # joins the lines from all cards from this row into one string with a space between them
+            return "\n".join(lines) # lines is now a list of strings, each representing one horizontal row of the hand
+        else:     
+            if hideHole:
+                hidden = [
+                    f"┌─────────┐",
+                    f"│?        │",
+                    f"│         │",
+                    f"│    ?    │",
+                    f"│         │",
+                    f"│        ?│",
+                    f"└─────────┘"
+                ]
+                cardRows.append(hidden)
+                cardRows.append(self.cards[1].render())
+            else:
+                cardRows = [card.render() for card in self.cards]
+            lines = []
+            for row in zip(*cardRows):
+                lines.append(" ".join(row))
+            return "\n".join(lines)
+    
+    def addCard(self, card):
         self.cards.append(card)
-
-    def checkCards(self):
-        return self.cards
     
     def getTotal(self):
         total = 0
@@ -57,12 +109,19 @@ class Hand:
         return total
 
 class Game: # defines a game class
-    def __init__(self): # constructor, runs automatically when a new game is started
+    def __init__(self, players): # constructor, runs automatically when a new game is started
+        self.players = players
         self.deck = [] # the container for the shuffled deck
+        self.hands = []
         
-        # TO HAVE MULTIPLE PLAYERS, SPLITTING, AND DOUBLING DOWN: TURN HANDS INTO THEIR OWN CLASS
-        self.pHand = Hand() # player's hand
-        self.dHand = Hand() # dealer's hand
+        for player in self.players:
+            self.hands.append(player.getHand())
+        self.dHand = Hand(True) # dealer's hand
+        self.hands.append(self.dHand)
+
+        # ADD A FUNCTION THAT MAKES EVERY PLAYER PLACE A BET
+        self.shuffleDeck()
+        self.dealStartingHands()
 
     def shuffleDeck(self):
         while len(self.deck) != 52: # starts a loop that stops once deck has 52 cards
@@ -74,73 +133,56 @@ class Game: # defines a game class
 
     def dealStartingHands(self):
         for i in range(2):
-            self.pHand.dealCard(self.deck.pop())
-            self.dHand.dealCard(self.deck.pop())
+            for hand in self.hands:
+                hand.addCard(self.deck.pop())
 
-    def renderDealerHand(self, hideHole):
-        cardRows = []
-        if hideHole:
-            hidden = [
-                f"┌─────────┐",
-                f"│?        │",
-                f"│         │",
-                f"│    ?    │",
-                f"│         │",
-                f"│        ?│",
-                f"└─────────┘"
-            ]
-            cardRows.append(hidden)
-            cardRows.append(self.dHand.checkCards()[1].render())
-            cardRows.extend([hidden] * (len(self.dHand.checkCards()) - 2)) # add hidden to cardRows once per card other than first
+    def printHand(self, name, hideHole=False):
+        if name != DNAME:
+            for player in self.players:
+                if player.name == name:
+                    hand = player.getHand()
+                    print(hand.renderHand(hideHole))
+                    return
+            print(f"ERROR: {name} DOES NOT MATCH ANY NAME OF AN EXISTING PLAYER")
         else:
-            cardRows = [card.render() for card in self.dHand.checkCards()]
-        lines = []
-        for row in zip(*cardRows):
-            lines.append(" ".join(row))
-        return "\n".join(lines)
-
-    def renderPlayerHand(self):
-        cardRows = [card.render() for card in self.pHand.checkCards()] # list of lists: each inner list is the ASCII lines of a card
-        lines = [] 
-        for row in zip(*cardRows): # combine the rows of each card from the same line together
-            lines.append(" ".join(row)) # joins the lines from all cards from this row into one string with a space between them
-        return "\n".join(lines) # lines is now a list of strings, each representing one horizontal row of the hand
+            print(self.dHand.renderHand(hideHole))
 
     def hit(self, hand):
-        hand.dealCard(self.deck.pop())
+        hand.addCard(self.deck.pop())
+
+    # STAND, DOUBLE DOWN, AND SPLIT FUNCTIONS HERE
 
     def isBust(self, hand):
         if hand.getTotal() > 21:
             return True
         return False
 
-    def checkDecision(self, decision):
-        #action = input("HIT OR STAND (H/S)").strip().upper()
-        match decision:
-            case "H":
-                self.hit(self.pHand)
-                return self.isBust(self.pHand)
-            case "ST":
-                return "STAND"
-            case "DD":
-                return "DOUBLE DOWN"
-            case "SP":
-                return "SPLIT"
-            case _: # default case
-                #self.queryPlayer()
-                # RETURN FALSE SO THAT queryPlayer METHOD WILL KNOW TO ASK AGAIN
-                pass
+# GAME LOOP:
+game = Setup().game
+print("DEALER:")
+game.printHand(DNAME, True)
+for player in game.players:
+    print(player.name)
+    print(player.money)
+    game.printHand(player.name)
 
-game = Game()
 
-game.shuffleDeck() 
-game.dealStartingHands()
+    # HAVE TO CHANGE SO WORKS FOR ALL PLAYER HANDS (HANDLE DEALER HITS DIFFERENTLY)
+    #def checkDecision(self, decision):
+    #    match decision:
+    #        case "H":
+    #            self.hit(self.pHand)
+    #            return self.isBust(self.pHand)
+    #        case "ST":
+    #            return "STAND"
+    #        case "DD":
+    #            return "DOUBLE DOWN"
+    #        case "SP":
+    #            return "SPLIT"
+    #        case _: # default case
+    #            # RETURN FALSE SO THAT queryPlayer METHOD WILL KNOW TO ASK AGAIN
+    #            pass
 
-print(game.renderPlayerHand())
-print(game.renderDealerHand(True))
-print(game.renderDealerHand(False))
-
-# GAME LOOP STEPS (WATCH BLACKJACK ROUND)
 
 # Goal: Get closer to 21 than the dealer without going over 21
 # How you lose: Going over 21 or, if at the end of the round, the dealer is closer to 21 than you are without going over
