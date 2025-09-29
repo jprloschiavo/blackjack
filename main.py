@@ -1,32 +1,60 @@
+# Goal: Get closer to 21 than the dealer without going over 21
+# How you lose: Going over 21 or, if at the end of the round, the dealer is closer to 21 than you are without going over
+# Card values: From 2 to 10, the cards are worth their point value. Face cards are worth 10 points. Aces are worth 1 or 11 depending on what is better for the player
+
+# Players bet before being dealt cards
+# Each player and the dealer is dealt one card and then a second card
+# Players can hit or stand, but the dealer has to hit until they have 17 or higher
+# Playing decisions:
+#  Hit: Tap the table, you get another card
+#  Stand: Wave hand, you do not want anymore cards, you can not make anymore decisions
+#  Double down: Double your bet in exchange for one more card, you can not take anymore cards at this point
+#  Split: When you have a pair, you can split your hand into two by matching your bet, you can hit or stay on both hands, you can also double down on a split hand
+# When everyone is done making their decisions, the dealer reveals their card. If the dealer has less than 17, they hit and take another card until they have 17 or higher
+# If you have the same hand as the dealer, you do not win or lose any money. This is called a push
+# If you hit and go over 21, you lose right away. This is called a bust
+# If the dealer busts and you do not, you win
+# BUT WAIT! If you are dealt a blackjack (21), you win automatically. Pays 3 to 2 (150%)
+# If the dealer is dealt an ace up or a 10 up, they check to see if they have a blackjack. If they do, the hand ends immediately. Anyone who does not have a blackjack loses, people with blackjacks push
+# When the dealer has an ace, players can buy insurance, which is a bet on whether the dealer has blackjack or not
+# Sometimes dealers will offer surrender if they have a strong upcard. When you surrender, you forfeit 50% of your bet, keep the rest, and leave the round
+
 # REMEMBER: self passes automatically except when you call a method through the class itself and not the instance
 
 import random
 
 DNAME = "DEALER"
-playerLimit = 7
-startingMoney = 500
 suits = ["♣", "♦", "♥", "♠"] # clubs, diamonds, hearts, spades
 ranks = {1: "A", 11: "J", 12: "Q", 13: "K"}
 
 class Setup:
     def __init__(self):
         self.players = []
+        self.playerNames = self.takeNames()
         self.addPlayers()
         self.game = self.createGame()        
     
+    def takeNames(self):
+        #print("MAXIMUM PLAYER COUNT: SEVEN (7)")
+        #nInput = input("PLEASE INPUT PLAYER NAMES SEPARATED BY SPACES: ")
+
+        #nInput = ("JOE EMMA GOJI")
+        nInput = ("JOE")
+
+        return nInput.split(" ")
+
     def addPlayers(self):
-        print("PLAYER MAXIMUM: 7")
-        playerNames = input("PLEASE INPUT PLAYER NAMES SEPARATED BY SLASHES (/): ").split("/")
-        for name in filter(None, playerNames[:playerLimit]): # ignores empty strings in case of misinput and slice syntax (:) says "take first {playerLimit} from playerNames"
+        for name in filter(None, self.playerNames[:7]): # ignores empty strings in case of misinput and slice syntax (:) says "take first {playerLimit} from playerNames"
             self.players.append(Player(name))
 
     def createGame(self):
+        print("\n")
         return Game(self.players)
 
 class Player:
     def __init__(self, name):
         self.name = name
-        self.money = startingMoney
+        self.money = 500
         self.hand = Hand()
     
     def getHand(self):
@@ -141,66 +169,64 @@ class Game: # defines a game class
             for player in self.players:
                 if player.name == name:
                     hand = player.getHand()
+                    print(f"{player.name}: ${player.money}")
                     print(hand.renderHand(hideHole))
+                    print(f"TOTAL: {hand.getTotal()}")
+                    print("\n")
                     return
             print(f"ERROR: {name} DOES NOT MATCH ANY NAME OF AN EXISTING PLAYER")
         else:
+            print("DEALER:")
             print(self.dHand.renderHand(hideHole))
-
-    def hit(self, hand):
-        hand.addCard(self.deck.pop())
-
-    # STAND, DOUBLE DOWN, AND SPLIT FUNCTIONS HERE
+            if hideHole == False: print(f"TOTAL: {self.dHand.getTotal()}")
+        print("\n")
 
     def isBust(self, hand):
         if hand.getTotal() > 21:
             return True
         return False
 
-# GAME LOOP:
+    def hitDealer(self):
+        while True:
+            if self.dHand.getTotal() < 17:
+                self.dHand.addCard(self.deck.pop())
+            else:
+                break
+        self.printHand(DNAME)
+
+    def hit(self, player=None): # CHECK ifBust SEPARATELY IN GAME LOOP
+        if player:
+            hand = player.getHand()
+            hand.addCard(self.deck.pop())
+            self.printHand(player.name)
+        else:
+            self.hitDealer()
+    
+    def stand(self, player):
+        print(f"{player.name} STOOD")
+        # EITHER MOVE PLAYER TO "FINISHED" PLAYER LIST OR BREAK WHILE LOOP IN GAME LOOP
+        pass
+
+    def checkInput(self, player, pInput):
+        match pInput:
+            case "H":
+                self.hit(player)
+            case "S":
+                self.stand(player)
+
+    def hitOrStand(self, player):
+        validInputs = ["H", "S"]
+        while True: # switched method to while loop to avoid crashing from bad inputs due to recursion (calling checkInput which called takeInput again)
+            pInput = input(f"{player.name}: HIT OR STAND? (H/S)").upper().strip()
+            if pInput in (validInputs):
+                return self.checkInput(player, pInput)
+            print(f"{pInput} IS AN INVALID INPUT. PLEASE TRY AGAIN")
+
+    # DOUBLE DOWN AND SPLIT FUNCTIONS HERE
+
 game = Setup().game
-print("DEALER:")
 game.printHand(DNAME, True)
 for player in game.players:
-    print(player.name)
-    print(player.money)
     game.printHand(player.name)
-
-
-    # HAVE TO CHANGE SO WORKS FOR ALL PLAYER HANDS (HANDLE DEALER HITS DIFFERENTLY)
-    #def checkDecision(self, decision):
-    #    match decision:
-    #        case "H":
-    #            self.hit(self.pHand)
-    #            return self.isBust(self.pHand)
-    #        case "ST":
-    #            return "STAND"
-    #        case "DD":
-    #            return "DOUBLE DOWN"
-    #        case "SP":
-    #            return "SPLIT"
-    #        case _: # default case
-    #            # RETURN FALSE SO THAT queryPlayer METHOD WILL KNOW TO ASK AGAIN
-    #            pass
-
-
-# Goal: Get closer to 21 than the dealer without going over 21
-# How you lose: Going over 21 or, if at the end of the round, the dealer is closer to 21 than you are without going over
-# Card values: From 2 to 10, the cards are worth their point value. Face cards are worth 10 points. Aces are worth 1 or 11 depending on what is better for the player
-
-# Players bet before being dealt cards
-# Each player and the dealer is dealt one card and then a second card
-# Players can hit or stand, but the dealer has to hit until they have 17 or higher
-# Playing decisions:
-#  Hit: Tap the table, you get another card
-#  Stand: Wave hand, you do not want anymore cards, you can not make anymore decisions
-#  Double down: Double your bet in exchange for one more card, you can not take anymore cards at this point
-#  Split: When you have a pair, you can split your hand into two by matching your bet, you can hit or stay on both hands, you can also double down on a split hand
-# When everyone is done making their decisions, the dealer reveals their card. If the dealer has less than 17, they hit and take another card until they have 17 or higher
-# If you have the same hand as the dealer, you do not win or lose any money. This is called a push
-# If you hit and go over 21, you lose right away. This is called a bust
-# If the dealer busts and you do not, you win
-# BUT WAIT! If you are dealt a blackjack (21), you win automatically. Pays 3 to 2 (150%)
-# If the dealer is dealt an ace up or a 10 up, they check to see if they have a blackjack. If they do, the hand ends immediately. Anyone who does not have a blackjack loses, people with blackjacks push
-# When the dealer has an ace, players can buy insurance, which is a bet on whether the dealer has blackjack or not
-# Sometimes dealers will offer surrender if they have a strong upcard. When you surrender, you forfeit 50% of your bet, keep the rest, and leave the round
+    game.hitOrStand(player)
+game.hit()
