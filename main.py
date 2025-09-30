@@ -22,6 +22,7 @@
 # REMEMBER: self passes automatically except when you call a method through the class itself and not the instance
 
 import random
+import math
 
 DNAME = "DEALER"
 PSTAND = "STAND"
@@ -36,12 +37,12 @@ class Setup:
         self.game = self.createGame()        
     
     def takeNames(self):
-        print("MAXIMUM PLAYER COUNT: SEVEN (7)")
-        nInput = input("PLEASE INPUT PLAYER NAMES SEPARATED BY SPACES: ")
+        #print("MAXIMUM PLAYER COUNT: SEVEN (7)")
+        #nInput = input("PLEASE INPUT PLAYER NAMES SEPARATED BY SPACES: ")
 
-        # CREATE CHECK TO MAKE SURE nInput IS NOT EMPTY
+        # CREATE CHECK TO MAKE SURE nInput IS NOT EMPTY AND THAT THERE ARE NO DUPLICATE NAMES
 
-        #nInput = ("JOE EMMA GOJI")
+        nInput = ("JOE EMMA GOJI")
         #nInput = ("JOE EMMA")
         #nInput = ("JOE")
 
@@ -58,11 +59,17 @@ class Setup:
 class Player:
     def __init__(self, name):
         self.name = name
-        self.money = 500
+        self.wallet = 500
         self.hand = Hand()
     
     def getHand(self):
         return self.hand
+
+    def addMoney(self, amount):
+        self.wallet = self.wallet + amount
+    
+    def subtractMoney(self, amount):
+        self.wallet = self.wallet - amount
 
 class Card: # define a class for cards
     def __init__(self, suit, rank): # the constructor for the card class
@@ -143,16 +150,35 @@ class Hand:
 class Game: # defines a game class
     def __init__(self, players): # constructor, runs automatically when a new game is started
         self.players = players
+        self.bets = {}
         self.deck = [] # the container for the shuffled deck
         self.dHand = Hand(True) # dealer's hand
 
-        # ADD A FUNCTION THAT MAKES EVERY PLAYER PLACE A BET
+        self.placeBets()
         self.shuffleDeck()
         self.dealStartingHands()
     
     def pressEnterToContinue(self):
         input("PRESS ENTER TO CONTINUE")
         print("\n")
+    
+    def placeBets(self):
+        for player in self.players:
+            while True:
+                try: # try block contains the code expected to potentially raise an exception (error)
+                    bet = float(input(f"{player.name} PLACE YOUR BET: $"))
+                    if bet <= 0:
+                        print("ERROR: BET MUST BE GREATER THAN ZERO")
+                    elif bet <= player.wallet:
+                        player.subtractMoney(bet)
+                        self.bets[player.name] = bet
+                        print(f"{player.name} BET ${self.bets[player.name]}")
+                        self.pressEnterToContinue()
+                        break
+                    else:
+                        print("ERROR: MUST ONLY BET MONEY YOU ACTUALLY HAVE")
+                except ValueError: # except block specifies how to handle a particular exception (ValueError)
+                    print("ERROR: BET MUST BE A FLOAT")
 
     def shuffleDeck(self):
         while len(self.deck) != 52: # starts a loop that stops once deck has 52 cards
@@ -161,9 +187,6 @@ class Game: # defines a game class
             card = Card(rSuit, rRank)
             if card not in self.deck: # checks if card is already in the deck
                 self.deck.append(card) # if not, adds new card object to deck
-    
-    def isBlackjack(self):
-        pass
 
     def dealStartingHands(self):
         for i in range(2):
@@ -177,7 +200,7 @@ class Game: # defines a game class
             for player in self.players:
                 if player.name == name:
                     hand = player.getHand()
-                    print(f"{player.name}: ${player.money}")
+                    print(f"{player.name}: ${player.wallet}")
                     print(hand.renderHand(hideHole))
                     print(f"TOTAL: {hand.getTotal()}")
                     print("\n")
@@ -199,6 +222,22 @@ class Game: # defines a game class
             self.pressEnterToContinue()
             return True
         return False
+    
+    def isBlackjack(self, player=None):
+        hand = player.getHand() if player else self.dHand
+        if hand.getTotal() == 21:
+            if player:
+                if len(hand.cards) == 2: # if only two cards in hand.cards list
+                    print(f"{player.name} NATURAL BLACKJACK")
+                    player.addMoney(self.bets[player.name] * 1.5)
+                    print(player.wallet)
+                else:
+                    print(f"{player.name} BLACKJACK")
+            else:
+                print("DEALER BLACKJACK")
+            self.pressEnterToContinue()
+            return True
+        return False
 
     def hitDealer(self):
         while True:
@@ -217,25 +256,33 @@ class Game: # defines a game class
         else:
             self.hitDealer()
 
+    def stand(self, player):
+        print(f"{player.name} STOOD")
+        self.pressEnterToContinue()
+        return PSTAND
+
     def checkInput(self, player, pInput):
         match pInput:
             case "H":
                 self.hit(player)
             case "S":
-                print(f"{player.name} STOOD")
-                self.pressEnterToContinue()
-                return PSTAND
+                return self.stand(player)
 
     def hitOrStand(self, player):
         validInputs = ["H", "S"]
-        while True: # switched method to while loop to avoid crashing from bad inputs due to recursion (calling checkInput which called takeInput again)
+        while True: # switched method to while loop to avoid crashing from bad inputs due to recursion (calling checkInput which recalled takeInput when given invalid input)
             pInput = input(f"{player.name}: HIT OR STAND? (H/S)").upper().strip()
             print("\n")
             if pInput in (validInputs):
                 return self.checkInput(player, pInput)
             print(f"{pInput} IS AN INVALID INPUT. PLEASE TRY AGAIN")
 
-    # DOUBLE DOWN AND SPLIT FUNCTIONS HERE
+    def doubleDown(self):
+        pass
+
+    def split(self):
+        # IF HAND TOTAL DIVIDED BY TWO YIELDS TWO EQUAL HALVES, PLAYER CAN SPLIT
+        pass
 
 game = Setup().game
 while True:
@@ -243,8 +290,11 @@ while True:
     game.pressEnterToContinue()
     for player in game.players:
         game.printHand(player.name)
+        if game.isBlackjack(player): # if player was dealt a natural blackjack
+            continue # skip the rest of the code and move on to next player
         while True:
-            if game.hitOrStand(player) == PSTAND or game.isBust(player):
+            if game.hitOrStand(player) == PSTAND or game.isBlackjack(player) or game.isBust(player):
                 break
     game.hit() # dealer hits until 17 or higher
+    game.isBlackjack()
     break
