@@ -24,6 +24,7 @@
 import random
 
 DNAME = "DEALER"
+PSTAND = "STAND"
 suits = ["♣", "♦", "♥", "♠"] # clubs, diamonds, hearts, spades
 ranks = {1: "A", 11: "J", 12: "Q", 13: "K"}
 
@@ -35,11 +36,14 @@ class Setup:
         self.game = self.createGame()        
     
     def takeNames(self):
-        #print("MAXIMUM PLAYER COUNT: SEVEN (7)")
-        #nInput = input("PLEASE INPUT PLAYER NAMES SEPARATED BY SPACES: ")
+        print("MAXIMUM PLAYER COUNT: SEVEN (7)")
+        nInput = input("PLEASE INPUT PLAYER NAMES SEPARATED BY SPACES: ")
+
+        # CREATE CHECK TO MAKE SURE nInput IS NOT EMPTY
 
         #nInput = ("JOE EMMA GOJI")
-        nInput = ("JOE")
+        #nInput = ("JOE EMMA")
+        #nInput = ("JOE")
 
         return nInput.split(" ")
 
@@ -140,16 +144,15 @@ class Game: # defines a game class
     def __init__(self, players): # constructor, runs automatically when a new game is started
         self.players = players
         self.deck = [] # the container for the shuffled deck
-        self.hands = []
-        
-        for player in self.players:
-            self.hands.append(player.getHand())
         self.dHand = Hand(True) # dealer's hand
-        self.hands.append(self.dHand)
 
         # ADD A FUNCTION THAT MAKES EVERY PLAYER PLACE A BET
         self.shuffleDeck()
         self.dealStartingHands()
+    
+    def pressEnterToContinue(self):
+        input("PRESS ENTER TO CONTINUE")
+        print("\n")
 
     def shuffleDeck(self):
         while len(self.deck) != 52: # starts a loop that stops once deck has 52 cards
@@ -158,11 +161,16 @@ class Game: # defines a game class
             card = Card(rSuit, rRank)
             if card not in self.deck: # checks if card is already in the deck
                 self.deck.append(card) # if not, adds new card object to deck
+    
+    def isBlackjack(self):
+        pass
 
     def dealStartingHands(self):
         for i in range(2):
-            for hand in self.hands:
+            for player in self.players:
+                hand = player.getHand()
                 hand.addCard(self.deck.pop())
+            self.dHand.addCard(self.deck.pop())
 
     def printHand(self, name, hideHole=False):
         if name != DNAME:
@@ -179,10 +187,16 @@ class Game: # defines a game class
             print("DEALER:")
             print(self.dHand.renderHand(hideHole))
             if hideHole == False: print(f"TOTAL: {self.dHand.getTotal()}")
-        print("\n")
+            print("\n")
 
-    def isBust(self, hand):
+    def isBust(self, player=None):
+        hand = player.getHand() if player else self.dHand # if player exists, hand equals player.getHand(). if player does not exist, hand equals self.dHand
         if hand.getTotal() > 21:
+            if player:
+                print(f"{player.name} BUST")
+            else:
+                print("DEALER BUST")
+            self.pressEnterToContinue()
             return True
         return False
 
@@ -193,31 +207,30 @@ class Game: # defines a game class
             else:
                 break
         self.printHand(DNAME)
+        self.isBust() # check if dealer bust
 
-    def hit(self, player=None): # CHECK ifBust SEPARATELY IN GAME LOOP
+    def hit(self, player=None):
         if player:
             hand = player.getHand()
             hand.addCard(self.deck.pop())
             self.printHand(player.name)
         else:
             self.hitDealer()
-    
-    def stand(self, player):
-        print(f"{player.name} STOOD")
-        # EITHER MOVE PLAYER TO "FINISHED" PLAYER LIST OR BREAK WHILE LOOP IN GAME LOOP
-        pass
 
     def checkInput(self, player, pInput):
         match pInput:
             case "H":
                 self.hit(player)
             case "S":
-                self.stand(player)
+                print(f"{player.name} STOOD")
+                self.pressEnterToContinue()
+                return PSTAND
 
     def hitOrStand(self, player):
         validInputs = ["H", "S"]
         while True: # switched method to while loop to avoid crashing from bad inputs due to recursion (calling checkInput which called takeInput again)
             pInput = input(f"{player.name}: HIT OR STAND? (H/S)").upper().strip()
+            print("\n")
             if pInput in (validInputs):
                 return self.checkInput(player, pInput)
             print(f"{pInput} IS AN INVALID INPUT. PLEASE TRY AGAIN")
@@ -225,8 +238,13 @@ class Game: # defines a game class
     # DOUBLE DOWN AND SPLIT FUNCTIONS HERE
 
 game = Setup().game
-game.printHand(DNAME, True)
-for player in game.players:
-    game.printHand(player.name)
-    game.hitOrStand(player)
-game.hit()
+while True:
+    game.printHand(DNAME, True)
+    game.pressEnterToContinue()
+    for player in game.players:
+        game.printHand(player.name)
+        while True:
+            if game.hitOrStand(player) == PSTAND or game.isBust(player):
+                break
+    game.hit() # dealer hits until 17 or higher
+    break
