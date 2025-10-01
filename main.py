@@ -60,10 +60,14 @@ class Player:
     def __init__(self, name):
         self.name = name
         self.wallet = 500
-        self.hand = Hand()
+        self.hands = [Hand()]
     
-    def getHand(self):
-        return self.hand
+    def getHand(self, i=0):
+        if i <= len(self.hands) - 1:
+            return self.hands[i]
+        print(f"INDEX {i} DOES NOT EXIST IN {self.name} HANDS")
+        print(f"RETURNING INDEX 0 INSTEAD")
+        return self.hands[0]
 
     def addMoney(self, amount):
         self.wallet = self.wallet + amount
@@ -281,7 +285,7 @@ class Game: # defines a game class
         pass
 
     def split(self):
-        # IF HAND TOTAL DIVIDED BY TWO YIELDS TWO EQUAL HALVES, PLAYER CAN SPLIT
+        # IF HAND HAS ONLY TWO CARDS AND HAND TOTAL DIVIDED BY TWO YIELDS TWO EQUAL HALVES, PLAYER CAN SPLIT
         pass
 
 game = Setup().game
@@ -289,6 +293,7 @@ while True:
     game.printHand(DNAME, True)
     game.pressEnterToContinue()
     for player in game.players:
+        # MAYBE SWITCH TO PASSING HAND TO GAME FUNCTIONS SO SPLITTING WORKS. WILL HAVE TO GET RID OF getHands() AND PASS HANDS AS FOR LOOP (for hand in player.getHands())
         game.printHand(player.name)
         if game.isBlackjack(player): # if player was dealt a natural blackjack
             continue # skip the rest of the code and move on to next player
