@@ -22,10 +22,8 @@
 # REMEMBER: self passes automatically except when you call a method through the class itself and not the instance
 
 import random
-import math
 
-DNAME = "DEALER"
-PSTAND = "STAND"
+PSTAND = "PSTOOD"
 suits = ["♣", "♦", "♥", "♠"] # clubs, diamonds, hearts, spades
 ranks = {1: "A", 11: "J", 12: "Q", 13: "K"}
 
@@ -37,12 +35,12 @@ class Setup:
         self.game = self.createGame()        
     
     def takeNames(self):
-        #print("MAXIMUM PLAYER COUNT: SEVEN (7)")
-        #nInput = input("PLEASE INPUT PLAYER NAMES SEPARATED BY SPACES: ")
+        print("MAXIMUM PLAYER COUNT: SEVEN (7)")
+        nInput = input("PLEASE INPUT PLAYER NAMES SEPARATED BY SPACES: ")
 
         # CREATE CHECK TO MAKE SURE nInput IS NOT EMPTY AND THAT THERE ARE NO DUPLICATE NAMES
 
-        nInput = ("JOE EMMA GOJI")
+        #nInput = ("JOE EMMA GOJI")
         #nInput = ("JOE EMMA")
         #nInput = ("JOE")
 
@@ -60,7 +58,7 @@ class Player:
     def __init__(self, name):
         self.name = name
         self.wallet = 500
-        self.hands = [Hand()]
+        self.hands = [Hand(self)]
     
     def getHand(self, i=0):
         if i <= len(self.hands) - 1:
@@ -68,6 +66,9 @@ class Player:
         print(f"INDEX {i} DOES NOT EXIST IN {self.name} HANDS")
         print(f"RETURNING INDEX 0 INSTEAD")
         return self.hands[0]
+    
+    def getHandsList(self):
+        return self.hands
 
     def addMoney(self, amount):
         self.wallet = self.wallet + amount
@@ -100,13 +101,13 @@ class Card: # define a class for cards
         ]
     
 class Hand:
-    def __init__(self, isDealer=False):
+    def __init__(self, player=None):
         self.cards = []
-        self.isDealer = isDealer
+        self.player = player
     
     def renderHand(self, hideHole=False):
         cardRows = []
-        if self.isDealer == False:
+        if self.player:
             cardRows = [card.render() for card in self.cards] # list of lists: each inner list is the ASCII lines of a card
             lines = [] 
             for row in zip(*cardRows): # combine the rows of each card from the same line together
@@ -150,13 +151,16 @@ class Hand:
             total -= 10
             aces -= 1
         return total
+    
+    def getPlayer(self):
+        return self.player
 
 class Game: # defines a game class
     def __init__(self, players): # constructor, runs automatically when a new game is started
         self.players = players
         self.bets = {}
         self.deck = [] # the container for the shuffled deck
-        self.dHand = Hand(True) # dealer's hand
+        self.dHand = Hand() # dealer's hand
 
         self.placeBets()
         self.shuffleDeck()
@@ -168,21 +172,22 @@ class Game: # defines a game class
     
     def placeBets(self):
         for player in self.players:
-            while True:
-                try: # try block contains the code expected to potentially raise an exception (error)
-                    bet = float(input(f"{player.name} PLACE YOUR BET: $"))
-                    if bet <= 0:
-                        print("ERROR: BET MUST BE GREATER THAN ZERO")
-                    elif bet <= player.wallet:
-                        player.subtractMoney(bet)
-                        self.bets[player.name] = bet
-                        print(f"{player.name} BET ${self.bets[player.name]}")
-                        self.pressEnterToContinue()
-                        break
-                    else:
-                        print("ERROR: MUST ONLY BET MONEY YOU ACTUALLY HAVE")
-                except ValueError: # except block specifies how to handle a particular exception (ValueError)
-                    print("ERROR: BET MUST BE A FLOAT")
+            for hand in player.getHandsList():
+                while True:
+                    try: # try block contains the code expected to potentially raise an exception (error)
+                        bet = float(input(f"{player.name} PLACE YOUR BET: $"))
+                        if bet <= 0:
+                            print("ERROR: BET MUST BE GREATER THAN ZERO")
+                        elif bet <= player.wallet:
+                            player.subtractMoney(bet)
+                            self.bets[hand] = bet
+                            print(f"{player.name} BET ${self.bets[hand]}")
+                            self.pressEnterToContinue()
+                            break
+                        else:
+                            print("ERROR: MUST ONLY BET MONEY YOU ACTUALLY HAVE")
+                    except ValueError: # except block specifies how to handle a particular exception (ValueError)
+                        print("ERROR: BET MUST BE A FLOAT")
 
     def shuffleDeck(self):
         while len(self.deck) != 52: # starts a loop that stops once deck has 52 cards
@@ -199,42 +204,46 @@ class Game: # defines a game class
                 hand.addCard(self.deck.pop())
             self.dHand.addCard(self.deck.pop())
 
-    def printHand(self, name, hideHole=False):
-        if name != DNAME:
-            for player in self.players:
-                if player.name == name:
-                    hand = player.getHand()
-                    print(f"{player.name}: ${player.wallet}")
-                    print(hand.renderHand(hideHole))
-                    print(f"TOTAL: {hand.getTotal()}")
-                    print("\n")
-                    return
-            print(f"ERROR: {name} DOES NOT MATCH ANY NAME OF AN EXISTING PLAYER")
+    def printHand(self, hand=None, hideHole=False):
+        if hand:
+            player = hand.getPlayer()
+            print(f"{player.name}: ${player.wallet}")
+            print(hand.renderHand(hideHole))
+            print(f"TOTAL: {hand.getTotal()}")
+            print("\n")
         else:
             print("DEALER:")
             print(self.dHand.renderHand(hideHole))
             if hideHole == False: print(f"TOTAL: {self.dHand.getTotal()}")
             print("\n")
 
-    def isBust(self, player=None):
-        hand = player.getHand() if player else self.dHand # if player exists, hand equals player.getHand(). if player does not exist, hand equals self.dHand
+    def resolveBet(self, hand, payout=0):
+        player = hand.getPlayer()
+        player.addMoney(self.bets[hand] * payout)
+        del self.bets[hand]
+        print(f"${player.wallet}")
+
+    def isBust(self, hand=None):
+        if not hand: hand = self.dHand
+        player = hand.getPlayer()
         if hand.getTotal() > 21:
             if player:
                 print(f"{player.name} BUST")
+                self.resolveBet(hand)
             else:
                 print("DEALER BUST")
             self.pressEnterToContinue()
             return True
         return False
     
-    def isBlackjack(self, player=None):
-        hand = player.getHand() if player else self.dHand
+    def isBlackjack(self, hand=None):
+        if not hand: hand = self.dHand
+        player = hand.getPlayer()
         if hand.getTotal() == 21:
             if player:
                 if len(hand.cards) == 2: # if only two cards in hand.cards list
                     print(f"{player.name} NATURAL BLACKJACK")
-                    player.addMoney(self.bets[player.name] * 1.5)
-                    print(player.wallet)
+                    self.resolveBet(hand, 1.5)
                 else:
                     print(f"{player.name} BLACKJACK")
             else:
@@ -249,37 +258,41 @@ class Game: # defines a game class
                 self.dHand.addCard(self.deck.pop())
             else:
                 break
-        self.printHand(DNAME)
+        self.printHand()
         self.isBust() # check if dealer bust
 
-    def hit(self, player=None):
-        if player:
-            hand = player.getHand()
+    def hit(self, hand=None):
+        if hand:
             hand.addCard(self.deck.pop())
-            self.printHand(player.name)
+            self.printHand(hand)
         else:
             self.hitDealer()
 
-    def stand(self, player):
+    def stand(self, hand):
+        player = hand.getPlayer()
         print(f"{player.name} STOOD")
         self.pressEnterToContinue()
         return PSTAND
 
-    def checkInput(self, player, pInput):
+    def checkInput(self, pInput, hand):
         match pInput:
             case "H":
-                self.hit(player)
+                self.hit(hand)
             case "S":
-                return self.stand(player)
+                return self.stand(hand)
 
-    def hitOrStand(self, player):
+    def hitOrStand(self, hand):
         validInputs = ["H", "S"]
-        while True: # switched method to while loop to avoid crashing from bad inputs due to recursion (calling checkInput which recalled takeInput when given invalid input)
-            pInput = input(f"{player.name}: HIT OR STAND? (H/S)").upper().strip()
-            print("\n")
-            if pInput in (validInputs):
-                return self.checkInput(player, pInput)
-            print(f"{pInput} IS AN INVALID INPUT. PLEASE TRY AGAIN")
+        player = hand.getPlayer()
+        if player:
+            while True: # switched method to while loop to avoid crashing from bad inputs due to recursion (calling checkInput which recalled takeInput when given invalid input)
+                pInput = input(f"{player.name}: HIT OR STAND? (H/S)").upper().strip()
+                print("\n")
+                if pInput in (validInputs):
+                    return self.checkInput(pInput, hand)
+                print(f"{pInput} IS AN INVALID INPUT. PLEASE TRY AGAIN")
+        else:
+            print(f"ERROR: {player} DOES NOT EXIST")
 
     def doubleDown(self):
         pass
@@ -290,16 +303,16 @@ class Game: # defines a game class
 
 game = Setup().game
 while True:
-    game.printHand(DNAME, True)
+    game.printHand(None, True)
     game.pressEnterToContinue()
     for player in game.players:
-        # MAYBE SWITCH TO PASSING HAND TO GAME FUNCTIONS SO SPLITTING WORKS. WILL HAVE TO GET RID OF getHands() AND PASS HANDS AS FOR LOOP (for hand in player.getHands())
-        game.printHand(player.name)
-        if game.isBlackjack(player): # if player was dealt a natural blackjack
-            continue # skip the rest of the code and move on to next player
-        while True:
-            if game.hitOrStand(player) == PSTAND or game.isBlackjack(player) or game.isBust(player):
-                break
+        for hand in player.getHandsList():
+            game.printHand(hand)
+            if game.isBlackjack(hand): # if player was dealt a natural blackjack
+                continue # skip the rest of the code and move on to next player
+            while True:
+                if game.hitOrStand(hand) == PSTAND or game.isBlackjack(hand) or game.isBust(hand):
+                    break
     game.hit() # dealer hits until 17 or higher
     game.isBlackjack()
     break
