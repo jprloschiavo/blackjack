@@ -41,7 +41,6 @@ class Card:
 class Deck:
     def __init__(self):
         self.deck = []
-
         self.createCards()
         self.shuffleDeck()
 
@@ -165,20 +164,14 @@ class Dealer:
     def getName(self):
         return "Dealer"
 
-class Game:
-    def __init__(self):
+class Round:
+    def __init__(self, players):
         self.deck = Deck()
         self.dealer = Dealer()
-        self.players = []
-        self.ongoingPlayers = []
+        self.players = players
+        self.ongoingPlayers = players.copy()
         self.finishedPlayers = []
-    
-    def addPlayers(self):
-        nameInput = input("Input player names separated by spaces: ")
-        for name in nameInput.split(" "):
-            player = Player(name)
-            self.players.append(player)
-            self.ongoingPlayers.append(player)
+        self.play()
 
     def takeBets(self):
         for player in self.players:
@@ -205,6 +198,12 @@ class Game:
                 player.getHands()[0].appendCard(self.deck.popCard())
             self.dealer.getHand().appendCard(self.deck.popCard())       
     
+    def finishPlayer(self, player):
+        if player not in self.finishedPlayers:
+            self.finishedPlayers.append(player)
+            if player in self.ongoingPlayers:
+                self.ongoingPlayers.remove(player)
+
     def checkNaturals(self):
         dealerHand = self.dealer.getHand()
         if not dealerHand.isNaturalBlackjack():
@@ -219,23 +218,20 @@ class Game:
         else:
             dealerHand.printHand()
             print(f"{self.dealer.getName()} natural blackjack")
-            for player in self.ongoingPlayers[:]:
-                self.finishedPlayers.append(player)
-                self.ongoingPlayers.remove(player)
-    
+            for player in self.players:
+                self.finishPlayer(player)
+
     def split(self, hand, player):
-        card = hand.popCard()
-        if card:
-            newHand = Hand(player)
-            newHand.appendCard(card)
-            bet = hand.getBet()
-            player.subtractMoney(bet)
-            newHand.recordBet(bet)
-            player.appendHand(newHand)
+        newHand = Hand(player)
+        newHand.appendCard(hand.popCard())
+        bet = hand.getBet()
+        player.subtractMoney(bet)
+        newHand.recordBet(bet)
+        player.appendHand(newHand)
 
     def checkSplits(self, player):
         playerHands = player.getHands()
-        if len(playerHands) <= 2:
+        if len(playerHands) <= 3:
             for hand in playerHands:
                 handCards = hand.getCards()
                 if len(handCards) == 2 and handCards[0] == handCards[1]:
@@ -253,8 +249,13 @@ class Game:
                             print(f"{splitInput} IS AN INVALID INPUT")
 
     def hit(self, hand):
+        player = hand.getOwner()
         hand.appendCard(self.deck.popCard())
         hand.printHand()
+        if hand.isBust():
+            print(f"{player.getName()} bust")
+        elif hand.isBlackjack():
+            print(f"{player.getName()} blackjack")
 
     def hitOrStand(self, hand):
         player = hand.getOwner()
@@ -264,20 +265,36 @@ class Game:
                 match playerInput:
                     case "H":
                         self.hit(hand)
-                        if hand.isBust():
-                            print(f"{player.getName()} bust")
-                            break
-                        elif hand.isBlackjack():
-                            print(f"{player.getName()} blackjack")
+                        if hand.isBust() or hand.isBlackjack():
                             break
                     case "S":
                         break
             else:
                 print(f"ERROR: {playerInput} IS AN INVALID INPUT")
-        if player not in self.finishedPlayers:
-            self.finishedPlayers.append(player)
-        if player in self.ongoingPlayers:
-            self.ongoingPlayers.remove(player)
+        self.finishPlayer(player)
+
+    def double(self, hand, player):
+        bet = hand.getBet()
+        player.subtractMoney(bet)
+        hand.recordBet(bet * 2)
+        self.hit(hand)   
+        self.finishPlayer(player)
+
+    def checkDoubles(self, player):
+        playerHand = player.getHands()[0]
+        if len(playerHand.getCards()) == 2 and playerHand.getTotal() in [9, 10, 11]:
+            while True:
+                playerHand.printHand()
+                doubleInput = input(f"{player.getName()}: double down? (Y/N)").upper().strip()
+                if doubleInput in ["Y", "N"]:
+                    match doubleInput:
+                        case "Y":
+                            self.double(playerHand, player)
+                            break
+                        case "N":
+                            break
+                else:
+                    print(f"{doubleInput} IS AN INVALID INPUT")
     
     def dealerTurn(self):
         dealerHand = self.dealer.getHand()
@@ -320,32 +337,34 @@ class Game:
                         player.addMoney(bet)
                 print(f"{player.getName()}'s current balance: ${player.getWallet()}")
     
-    def getOngoingPlayers(self):
-        return self.ongoingPlayers
+    def play(self):
+        self.takeBets()
+        self.dealStartingHands()
+        self.checkNaturals()
+        while len(self.ongoingPlayers) > 0:
+            for player in self.ongoingPlayers[:]:
+                self.checkDoubles(player)
+                if player in self.ongoingPlayers[:]:
+                    self.checkSplits(player)
+                    for hand in player.getHands()[:]:
+                        hand.printHand()
+                        self.hitOrStand(hand)
+            self.dealerTurn()
+            self.resolveHands()
 
-#run = True
+class Game:
+    def __init__(self):
+        self.players = []
+        self.addPlayers()
+        self.startRound()
+    
+    def addPlayers(self):
+        nameInput = input("Input player names separated by spaces: ")
+        for name in nameInput.split(" "):
+            player = Player(name)
+            self.players.append(player)
+    
+    def startRound(self):
+        Round(self.players)
+
 game = Game()
-game.addPlayers()
-#while run:
-game.takeBets()
-game.dealStartingHands()
-game.checkNaturals()
-while len(game.getOngoingPlayers()) > 0:
-    for player in game.getOngoingPlayers()[:]:
-        game.checkSplits(player)
-        for hand in player.getHands():
-            hand.printHand()
-            game.hitOrStand(hand)
-    game.dealerTurn()
-    game.resolveHands()
-    #while True:
-        #roundInput = input("PLAY ANOTHER ROUND? (Y/N)").upper().strip()
-        #if roundInput in ["Y", "N"]:
-            #match roundInput:
-                #case "Y":
-                    #break
-                #case "N":
-                    #run = False
-                    #break
-        #else:
-            #print("ERROR: INVALID INPUT. PLEASE TRY AGAIN")
